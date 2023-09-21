@@ -8,14 +8,20 @@ public class CreateBoard : MonoBehaviour
 {
     public GameObject[] tilePrefabs;
     public GameObject housePrefab;
+    public GameObject treePrefab;
     public Text score;
-    long dirtBB;
+    GameObject[] tiles;
+    long dirtBB = 0;
+    long desertBB = 0;
+    long treeBB = 0;
+    long playerBB = 0;
 
 
 
     //generates 8x8 game board upon start
     private void Start()
     {
+        tiles = new GameObject[64];
         //board is 8x8
         //each tile is 1x1
         for(int row = 0; row < 8; row++)
@@ -32,12 +38,47 @@ public class CreateBoard : MonoBehaviour
 
                 //rename to "TAG_ROW_COL"
                 tile.name = tile.tag + "_" + row + "_" + col;
-
+                tiles[row * 8 + col] = tile;
+//debug
                 if(tile.tag == "Dirt")
                 {
                     dirtBB = SetCellState(dirtBB, row, col);
-                    //print location of dirt bitFlag on board
-                    //PrintBB("dirtBB", dirtBB);
+                }
+                else if(tile.tag == "Desert")
+                {
+                    desertBB = SetCellState(desertBB, row, col);
+
+                }
+            }
+        }
+        InvokeRepeating("PlantTree", 1, 1);
+        //Debug.Log("dirtCells: " + CellCount(dirtBB));
+    }
+
+
+
+    private void Update()
+    {
+        if (Input.GetMouseButtonDown(0))
+        {
+            RaycastHit hit;
+            var ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+
+            if (Physics.Raycast(ray, out hit))
+            {
+                var hitTransform = hit.collider.gameObject.transform;
+                int row = (int)hitTransform.position.z;
+                int col = (int)hitTransform.position.x;
+
+                if(GetCellState((dirtBB & ~treeBB) | desertBB, row, col))
+                {
+                    GameObject house = Instantiate(housePrefab);
+                    house.transform.parent = hitTransform;
+                    house.transform.localPosition = Vector3.zero;
+
+                    playerBB = SetCellState(playerBB, row, col);
+
+                    CalculateScore();
                 }
             }
         }
@@ -45,9 +86,29 @@ public class CreateBoard : MonoBehaviour
 
 
 
-    void PrintBB(string name, long bitBoard)
+    void PlantTree()
     {
-        Debug.Log(name + ": " + Convert.ToString(bitBoard, 2).PadLeft(64, '0'));
+        int randRow = UnityEngine.Random.Range(0, 8);
+        int randCol = UnityEngine.Random.Range(0, 8);
+
+        if(GetCellState(~playerBB & dirtBB, randRow, randCol))
+        {
+            GameObject tree = Instantiate(treePrefab);
+            tree.transform.parent = tiles[randRow * 8 + randCol].transform;
+            tree.transform.localPosition = Vector3.zero;
+
+            treeBB = SetCellState(treeBB, randRow, randCol);
+        }
+
+    }
+
+
+
+    bool GetCellState(long bitBoard, int row, int col)
+    {
+        long mask = 1L << (row * 8 + col);
+
+        return (bitBoard & mask) != 0;
     }
 
 
@@ -64,6 +125,35 @@ public class CreateBoard : MonoBehaviour
 
     int CellCount(long bitBoard)
     {
-        return -1;
+        int count = 0;
+        long bb = bitBoard;
+
+        while (bb != 0)
+        {
+            bb &= bb - 1;
+            count++;
+        }
+
+        return count;
     }
+
+
+
+    void CalculateScore()
+    {
+        score.text = "Score: " + ((CellCount(dirtBB & playerBB) * 10) + (CellCount(desertBB & playerBB) * 2));
+
+    }
+
+
+
+
+
+
+    //DEBUG METHODS
+    void PrintBB(string name, long bitBoard)
+    {
+        Debug.Log(name + ": " + Convert.ToString(bitBoard, 2).PadLeft(64, '0'));
+    }
+
 }
